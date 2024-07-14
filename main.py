@@ -1,23 +1,61 @@
 import fastapi
 from db_config import connection
+from pydantic import BaseModel
+from chatbot import send_message_llm
+from chatbot import updateStatus
+from contextlib import asynccontextmanager
+from apscheduler.schedulers.background import BackgroundScheduler
+import logging
+import sys
 
-app = fastapi.FastAPI()
+# 전역 예외 핸들러 설정
+def handle_exception(exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+        return
+    logger.critical("Unhandled exception", exc_info=(exc_type, exc_value, exc_traceback))
 
-@app.get('/')
-def home():
-    return {"message":"hello world!"}
+sys.excepthook = handle_exception
+
+# 로깅 설정
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+scheduler = BackgroundScheduler()
 
 
-@app.get('/store')
-def get_store():
-    cursor = connection.cursor()
-    cursor.execute("SELECT * FROM STORE")
-    rows = cursor.fetchall()
-    
-    # 컬럼 이름 가져오기
-    columns = [col[0] for col in cursor.description]
+@asynccontextmanager
+async def lifespan(app: fastapi.FastAPI):
+    print('서버시작')
+    updateStatus()
+    scheduler.start()
+    yield 
+    logger.info('스케줄러 종료 중...')
+    try:
+        scheduler.shutdown(wait=False)  # 강제로 스케줄러 종료
+    except Exception as e:
+        logger.exception("Exception during scheduler shutdown: %s", e)
+    logger.info('서버 종료')
 
-    # Row 객체를 딕셔너리로 변환
-    stores = [dict(zip(columns, row)) for row in rows]
+# 30분 마다 업데이트
+scheduler.add_job(updateStatus,"interval",minutes = 30)
 
-    return {"stores": stores}
+app = fastapi.FastAPI(lifespan=lifespan)
+
+class Message(BaseModel):
+    message: str
+
+@app.get("/")
+async def start():
+    return {"Hello":"chat_bot_server"}
+
+@app.post('/api/main_chat')
+async def main_chatbot(message: Message):
+    response = send_message_llm(message.message)
+    return {"response": response}
+
+@app.post('/api/store_chat/{store_no}')
+async def store_chatbot(store_no: int, message: Message):
+    mes = str(store_no) + "번 가게에 대해 설명해줘. " + message.message
+    response = send_message_llm(mes)
+    return {"response": response}

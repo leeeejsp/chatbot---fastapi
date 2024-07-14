@@ -1,0 +1,6 @@
+fastapi
+cx_Oracle
+google-generativeai
+langchain-google-genai
+apscheduler
+pandas
