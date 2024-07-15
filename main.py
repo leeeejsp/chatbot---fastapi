@@ -7,6 +7,8 @@ from contextlib import asynccontextmanager
 from apscheduler.schedulers.background import BackgroundScheduler
 import logging
 import sys
+from fastapi.middleware.cors import CORSMiddleware
+
 
 # 전역 예외 핸들러 설정
 def handle_exception(exc_type, exc_value, exc_traceback):
@@ -44,6 +46,20 @@ app = fastapi.FastAPI(lifespan=lifespan)
 
 class Message(BaseModel):
     message: str
+
+
+# CORS에러 해결
+origins = [
+    "http://localhost:8080",
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,  # cross-origin request에서 cookie를 포함할 것인지 (default=False)
+    allow_methods=["*"],     # cross-origin request에서 허용할 method들을 나타냄. (default=['GET']
+    allow_headers=["*"],     # cross-origin request에서 허용할 HTTP Header 목록
+)
 
 @app.get("/")
 async def start():

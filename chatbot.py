@@ -35,7 +35,7 @@ def get_data():
             s.totalreview,
             s.totalrating,
             s.likes,
-            'http://localhost/store/' || to_char(s.storeno) as url,
+            'http://localhost:8080/store/' || to_char(s.storeno) as url,
             nvl(m.menuname,' ') as menuname,
             nvl(to_char(m.price),' ') as price
         from store s
